@@ -92,14 +92,14 @@ jobs:
             --flag kmonad:dext \
             --extra-include-dirs=c_src/mac/Karabiner-DriverKit-VirtualHIDDevice/include/pqrs/karabiner/driverkit:c_src/mac/Karabiner-DriverKit-VirtualHIDDevice/src/Client/vendor/include
 
-      - name: Build and test (macOS, kext)
-        shell: bash
-        if: runner.os == 'macOS'
-        run: |
-          stack build \
-            --no-terminal \
-            --resolver=${{ matrix.resolver }} --system-ghc \
-            --flag kmonad:kext --extra-include-dirs=c_src/mac/Karabiner-VirtualHIDDevice/dist/include
+#       - name: Build and test (macOS, kext)
+#         shell: bash
+#         if: runner.os == 'macOS'
+#         run: |
+#           stack build \
+#             --no-terminal \
+#             --resolver=${{ matrix.resolver }} --system-ghc \
+#             --flag kmonad:kext --extra-include-dirs=c_src/mac/Karabiner-VirtualHIDDevice/dist/include
 
 #       - name: Build and test
 #         shell: bash
