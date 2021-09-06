@@ -103,5 +103,7 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: my-artifact
+          name: my-artifact-${{ matrix.os }}-${{ matrix.resolver }}
           path: .
+      - name: ls
+        run: ls
