@@ -12,6 +12,8 @@
 <a href="#disclaimer">Disclaimer</a> •
 </p>
 
+This is for triggering windows builds
+
 ## Introduction
 
 KMonad is an advanced tool that lets you infinitely customize and extend the functionalities of almost any keyboard. For a detailed list of features, see [here](#features).
