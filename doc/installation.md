@@ -29,6 +29,10 @@
 
 ## Compilation
 
+Note that, regardless of which compilation method you choose, `git`
+needs to be in `$PATH` when compiling kmonad.  This is because we insert
+the current commit into the output of `--version` at compile time.
+
 ### Using `stack`
 The currently recommended, cross-platform solution to compiling KMonad is to use the
 [stack](https://github.com/commercialhaskell/stack) Haskell project manager.
@@ -204,18 +208,33 @@ installed dext is compatibile with kmonad and you can move onto
 [installing kmonad](#installing-kmonad). If another version is listed,
 this may work too (but has not been tested).
 
+##### Build and sign the dext yourself
+
 If you want to attempt building and signing the dext yourself, look to
 [the
 documentation](https://github.com/pqrs-org/Karabiner-DriverKit-VirtualHIDDevice)
-for instructions. Otherwise, to install the dext as a signed binary,
-make sure to initialize the dext submodule (`git clone --recursive
-https://github.com/kmonad/kmonad.git`, e.g.), then open
-`c_src/mac/Karabiner-DriverKit-VirtualHIDDevice/dist/Karabiner-DriverKit-VirtualHIDDevice-1.15.0.dmg`
-and install via the installer. Finally, execute:
+for instructions.
 
-``` console
+##### Install the already build and signed dext package
+
+To install the dext as a signed binary, initialize the dext git submodule,
+install the extension, and activate the extension.
+
+```console
+  $ git clone --recursive https://github.com/kmonad/kmonad.git
+```
+
+```console
+  $ cd kmonad/
+  $ open c_src/mac/Karabiner-DriverKit-VirtualHIDDevice/dist/Karabiner-DriverKit-VirtualHIDDevice-1.15.0.pkg
+```
+
+```console
   $ /Applications/.Karabiner-VirtualHIDDevice-Manager.app/Contents/MacOS/Karabiner-VirtualHIDDevice-Manager activate
 ```
+
+Note: If activation failed (e.g. because a newer version is already installed), replace `activate` in the above command with `forceActivate` and try again.
+
 
 #### Installing kmonad
 
@@ -276,15 +295,40 @@ Kmonad is available in the Arch User Repository (AUR) as
 
 ### GNU Guix
 
-You can install `kmonad` via the `guix` package manager. you will need to copy
+You can install `kmonad` via the `guix` package manager. You will need to copy
 the udev rules into place manually.
 
 ``` console
   $ guix install kmonad
-  # cp $(guix build kmonad)/lib/udev/rules.d/70-kmonad.rules /lib/udev/rules.d/
+  # cp <kmonad-path>/lib/udev/rules.d/70-kmonad.rules /lib/udev/rules.d/
 ```
 
-If you use the guix system to manage your entire machine, you will instead want
+According to Guix's package store mechanism, `<kmonad-path>` will include a hash
+that captures the exact KMonad version. By default, the path will follow the
+pattern `/gnu/store/<hash>-kmonad-<version>/`.
+
+Use the `guix build kmonad` command to identify the correct path. In case the
+command returns multiple paths, go for the shortest one.
+
+So, for instance, if `build` returns
+
+``` console
+  $ guix build kmonad
+  /gnu/store/9mx79afpjqxjiiqgh1xv3b7ckblnl4wk-kmonad-0.4.1
+  /gnu/store/al0bmdxvl3a8s11vxn13y2nkq4hbg4c8-kmonad-0.4.1-static
+```
+
+`<kmonad-path>` will be
+`/gnu/store/9mx79afpjqxjiiqgh1xv3b7ckblnl4wk-kmonad-0.4.1` and the copy
+operation will then be as follows
+
+``` console
+  # cp \
+  /gnu/store/9mx79afpjqxjiiqgh1xv3b7ckblnl4wk-kmonad-0.4.1/lib/udev/rules.d/70-kmonad.rules \
+  /lib/udev/rules.d/
+```
+
+If you use the Guix System to manage your entire machine, you will instead want
 to install udev rules using something like this in your `config.scm`
 
 ``` scheme
@@ -301,6 +345,7 @@ to install udev rules using something like this in your `config.scm`
 ```
 
 ### Void Linux
+
 You can install `kmonad` via `xbps-install`:
 
 ``` console

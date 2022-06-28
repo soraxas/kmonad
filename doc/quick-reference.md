@@ -109,6 +109,21 @@ Defining fancy buttons is why we're here, right? There are a variety of
 these things here, as well as some helpers to make entering them into
 layers (more below) much easier.
 
+## Press- or release-only buttons
+
+- `(press-only x)` : Send the *press* of x when this button is tapped
+- `(release-only x)` : Send the *release* of x when this button is tapped
+
+It is possible to define buttons that only press or release a virtual output
+button. They are useful in tap-macros, especially ones that are going to be
+executed in a 'known context'. Assume you want to use your physical alt button
+to *both* open a layer, but also to function as a basic `alt` key. This can be
+achieved by `(around met (layer-toggle my-layer))`. However, if you have a macro
+inside `my-layer` that taps alt, then this would release alt until the layer is
+reactivated (by physically releasing and repressing the `alt` key). The macro,
+however, can instead be affixed by `(press-only met)`, making the last step of
+the macro the reactivation of the `alt` key, solving the problem.
+
 ## Modded Buttons
 
 To make key-entry easier, kmonad already provides some syntax for
@@ -152,7 +167,13 @@ The definition of a key chord then looks like this:
   ```clojure
   (defalias ns  (around-next sft))  ;; Shift the next press
   ```
++ `around-next-timeout`: like `around-next` except that if other button press is not detected within
+  some timeout, some other button is tapped.
 
+  ```clojure
+  ntm (around-next-timeout 500 sft XX)
+  ```
+  
 + `sticky keys`: act like the key is held temporarily after just one
   press for the given amount of time (in ms).
 
@@ -189,7 +210,8 @@ preferences—that's why there are so many! Particularly when using
 home-row modifiers, you will find some of the more crazy seeming buttons
 to be the most comfortable.
 
-+ `tap-macro`: take a sequence of keys and tap them
++ `tap-macro`: take a sequence of keys and tap them, but don’t release
+  the last key until the button is released.
 
   ```clojure
   (defalias ta1 (tap-macro K M o n a d))
@@ -203,6 +225,13 @@ to be the most comfortable.
     ta1 (tap-macro K M o n a d :delay 5)
     ;; equivalent to: (tap-macro K P5 M P5 o P5 n P5 a P5 d)
   )
+  ```
+
++ `tap-macro-release`: like `tap-macro` but don’t press the last key
+  until the button is released.
+
+  ```clojure
+  (defalias ta2 (tap-macro-release K M o n a d))
   ```
 
 + `multi-tap`: combine a sequence of keys into one key with a timeout
@@ -248,6 +277,17 @@ to be the most comfortable.
 
   ```clojure
   (defalias thr (tap-hold-next-release 1000 a sft))
+  ```
+  
++ `tap-hold-next` and `tap-hold-next-release` can take an optional 
+  `:timeout-button` keyword to specify a button other than the
+  hold button which should be held when the timeout expires.
+
+  ```clojure
+  (defalias
+    thn (tap-hold-next 200 a lsft :timeout-button x)
+    thr (tap-hold-next-release 200 a lsft :timeout-button x)
+  )
   ```
 
 # Layers

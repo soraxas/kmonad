@@ -34,7 +34,7 @@
   - block comments between: #| and its reverse
   - line comments following: ;;
 
-  Unlike standard lisp, a single ; does not denote a command, but instead the
+  Unlike standard lisp, a single ; does not denote a comment, but instead the
   keycode for semicolon.
 
   Also, as you might have noticed, whitespace is possible anywhere.
@@ -500,6 +500,13 @@
 
     (tap-macro K P5 M P5 o P5 n P5 a P5 d)
 
+  The `tap-macro-release` is like `tap-macro`, except that it
+  waits to press the last button when the `tap-macro-release`
+  gets released.  It might be useful when combined with a
+  footswitch that sends keybooard scan codes.
+
+    (tap-macro-release i K M o n a d esc)
+
   WARNING: DO NOT STORE YOUR PASSWORDS IN PLAIN TEXT OR IN YOUR KEYBOARD
 
   I know it might be tempting to store your password as a macro, but there are 2
@@ -520,11 +527,12 @@
   mc2 #(C-c P50 A-tab P50 C-v) ;; Careful, this might do something
   mc3 #(P200 h P150 4 P100 > < P50 > < P20 0 r z 1 ! 1 ! !)
   mc4 (tap-macro a (pause 50) @md2 (pause 50) c)
-  mc5 #(@mc3 spc @mc3 spc @mc3)
+  mc5 (tap-macro-release esc esc esc)
+  mc6 #(@mc3 spc @mc3 spc @mc3)
 )
 
 (deflayer macro-test
-  _    @mc1 @mc2 @mc3 @mc4 @mc5 _    _    _    _    _    _    _    _
+  _    @mc1 @mc2 @mc3 @mc4 @mc5 @mc6 _    _    _    _    _    _    _
   _    _    _    _    _    _    _    _    _    _    _    _    _    _
   _    _    _    _    _    _    _    _    _    _    _    _    _
   _    _    _    _    _    _    _    _    _    _    _    _
@@ -568,7 +576,7 @@
   beginnings of 'leader-key' style behavior. I think this whole button will get
   deleted soon, because the more general `around-next` now exists (see below)
   and this is nothing more than:
-    (around-next (layer-toggle layer-name) some-button)
+    (around-next (layer-toggle layer-name))
   Until then though, use `layer-next` like this:
     (layer-next layer-name)
 
@@ -729,9 +737,24 @@
   outwait the delay, and you're good. I see no benefit of `tap-next` over
   `tap-hold-next` with a decent timeout value.
 
+  You can use the `:timeout-button` keyword to specify a button other than the
+  hold button which should be held when the timeout expires. For example, we
+  can construct a button which types one x when tapped, multiple x's when held,
+  and yet still acts as shift when another button is pressed before the timeout
+  expires. So, using the minilanguage and foo as:
+    (tap-hold-next 200 x lsft :timeout-button x)
+  Then:
+    Tesc           -> Tx
+    Pesc 100 a     -> A (the moment you press a)
+    Pesc 5000 Resc -> xxxxxxx (some number of auto-repeated x's)
+
+  Note that KMonad does not itself auto-repeat the key. In this last example,
+  KMonad emits 200 Px 4800 Rx, and the operating system's auto-repeat feature,
+  if any, emits multiple x's because it sees that the x key is held for 4800 ms.
+
   The `tap-next-release` is like `tap-next`, except it decides whether to tap or
   hold based on the next release of a key that was *not* pressed before us. This
-  also performs rollback like `tap-hold`.So, using the minilanguage and foo as:
+  also performs rollback like `tap-hold`. So, using the minilanguage and foo as:
     (tap-next-release x lsft)
   Then:
     Tesc Ta         -> xa
@@ -809,6 +832,12 @@
   Shift pressed' or 'being inside some layer' or, less usefully, 'having d
   pressed'. It is a more general and powerful version of `layer-next`.
 
+  There is also an `around-next-timeout` button that does the same thing as
+  `around-next`, except that if some other button press is not detected within
+  some timeout, some other button is tapped. This can be used to create a
+  leader-key that simply times out (by passing a non-button), or a key that can
+  still function as a normal key, but also as a leader key when used slowly.
+
   I think expansion of this button-style is probably the future of leader-key,
   hydra-style functionality support in KMonad.
 
@@ -817,16 +846,17 @@
 (defalias
   ns  (around-next sft)  ;; Shift the next press
   nnm (around-next @num) ;; Perform next press in numbers layer
-  nd  (around-next d)    ;; Silly, but possible
+  ntm (around-next-timeout 500 sft XX)
+
 
 )
 
 (deflayer around-next-test
   _    _    _    _    _    _    _    _    _    _    _    _    _    _
   _    _    _    _    _    _    _    _    _    _    _    _    _    _
-  @nd  _    _    _    _    _    _    _    _    _    _    _    _
+  @ns  _    _    _    _    _    _    _    _    _    _    _    _
   @nnm _    _    _    _    _    _    _    _    _    _    _
-  @ns  _    _              _              _    _    _    _
+  @ntm _    _              _              _    _    _    _
 )
 
 #| --------------------------------------------------------------------------
@@ -878,7 +908,7 @@
   _    _    _    _    _    _    _    _    _    _    _    _    _    _
   _    ä    é    ©    _    _    _    _    _    _    _    _    _    _
   _    +'   +~   +`   +^   _    _    _    _    _    _    _    _
-  _    +"   _    _    _    _    _    _    _    _    _    _
+  _    +"   +,   _    _    _    _    _    _    _    _    _
   _    _    _              _              _    _    _    _)
 
 

@@ -260,7 +260,7 @@ pickOutput :: OToken -> J (LogFunc -> IO (Acquire KeySink))
 pickOutput (KUinputSink t init) = pure $ runLF (uinputSink cfg)
   where cfg = defUinputCfg { _keyboardName = T.unpack t
                            , _postInit     = T.unpack <$> init }
-pickOutput KSendEventSink       = throwError $ InvalidOS "SendEventSink"
+pickOutput (KSendEventSink _)   = throwError $ InvalidOS "SendEventSink"
 pickOutput KKextSink            = throwError $ InvalidOS "KextSink"
 
 #endif
@@ -275,9 +275,9 @@ pickInput (KIOKitSource _)    = throwError $ InvalidOS "IOKitSource"
 
 -- | The Windows correspondence between OToken and actual code
 pickOutput :: OToken -> J (LogFunc -> IO (Acquire KeySink))
-pickOutput KSendEventSink    = pure $ runLF sendEventKeySink
-pickOutput (KUinputSink _ _) = throwError $ InvalidOS "UinputSink"
-pickOutput KKextSink         = throwError $ InvalidOS "KextSink"
+pickOutput (KSendEventSink di) = pure $ runLF (sendEventKeySink di)
+pickOutput (KUinputSink _ _)   = throwError $ InvalidOS "UinputSink"
+pickOutput KKextSink           = throwError $ InvalidOS "KextSink"
 
 #endif
 
@@ -293,7 +293,7 @@ pickInput KLowLevelHookSource = throwError $ InvalidOS "LowLevelHookSource"
 pickOutput :: OToken -> J (LogFunc -> IO (Acquire KeySink))
 pickOutput KKextSink            = pure $ runLF kextSink
 pickOutput (KUinputSink _ _)    = throwError $ InvalidOS "UinputSink"
-pickOutput KSendEventSink       = throwError $ InvalidOS "SendEventSink"
+pickOutput (KSendEventSink _)   = throwError $ InvalidOS "SendEventSink"
 
 #endif
 
@@ -338,6 +338,8 @@ joinButton ns als =
 
     -- Various simple buttons
     KEmit c -> ret $ emitB c
+    KPressOnly c -> ret $ pressOnly c
+    KReleaseOnly c -> ret $ releaseOnly c
     KCommand pr mbR -> ret $ cmdButton pr mbR
     KLayerToggle t -> if t `elem` ns
       then ret $ layerToggle t
@@ -368,12 +370,14 @@ joinButton ns als =
     KAround o i        -> jst $ around             <$> go o <*> go i
     KTapNext t h       -> jst $ tapNext            <$> go t <*> go h
     KTapHold s t h     -> jst $ tapHold (fi s)     <$> go t <*> go h
-    KTapHoldNext s t h -> jst $ tapHoldNext (fi s) <$> go t <*> go h
+    KTapHoldNext s t h mtb
+      -> jst $ tapHoldNext (fi s) <$> go t <*> go h <*> traverse go mtb
     KTapNextRelease t h -> jst $ tapNextRelease    <$> go t <*> go h
-    KTapHoldNextRelease ms t h
-      -> jst $ tapHoldNextRelease (fi ms) <$> go t <*> go h
+    KTapHoldNextRelease ms t h mtb
+      -> jst $ tapHoldNextRelease (fi ms) <$> go t <*> go h <*> traverse go mtb
     KAroundNext b      -> jst $ aroundNext         <$> go b
     KAroundNextSingle b -> jst $ aroundNextSingle <$> go b
+    KAroundNextTimeout ms b t -> jst $ aroundNextTimeout (fi ms) <$> go b <*> go t
     KPause ms          -> jst . pure $ onPress (pause ms)
     KMultiTap bs d     -> jst $ multiTap <$> go d <*> mapM f bs
       where f (ms, b) = (fi ms,) <$> go b

@@ -10,12 +10,9 @@ Portability : non-portable (MPTC with FD, FFI to Linux-only c-code)
 
 -}
 module KMonad.Args.Types
-  ( -- * $bsc
-    Parser
-  , PErrors(..)
-
+  (
     -- * $cfg
-  , CfgToken(..)
+    CfgToken(..)
 
     -- * $but
   , DefButton(..)
@@ -35,10 +32,6 @@ module KMonad.Args.Types
     -- * $lenses
   , AsKExpr(..)
   , AsDefSetting(..)
-
-    -- * Reexports
-  , module Text.Megaparsec
-  , module Text.Megaparsec.Char
 ) where
 
 
@@ -49,48 +42,36 @@ import KMonad.Keyboard
 import KMonad.Keyboard.IO
 import KMonad.Util
 
-import Text.Megaparsec
-import Text.Megaparsec.Char
-
---------------------------------------------------------------------------------
--- $bsc
---
--- The basic types of parsing
-
--- | Parser's operate on Text and carry no state
-type Parser = Parsec Void Text
-
--- | The type of errors returned by the Megaparsec parsers
-newtype PErrors = PErrors (ParseErrorBundle Text Void)
-
-instance Show PErrors where
-  show (PErrors e) = "Parse error at " <> errorBundlePretty e
-
-instance Exception PErrors
-
 --------------------------------------------------------------------------------
 -- $but
 --
 -- Tokens representing different types of buttons
 
+-- FIXME: This is really broken: why are there 2 lists of 'DefButton's? There is
+-- one here, and one in Parser/Types.hs
+
 -- | Button ADT
 data DefButton
   = KRef Text                              -- ^ Reference a named button
   | KEmit Keycode                          -- ^ Emit a keycode
+  | KPressOnly Keycode                     -- ^ Emit only the press of a keycode
+  | KReleaseOnly Keycode                   -- ^ Emit only the release of a keycode
   | KLayerToggle Text                      -- ^ Toggle to a layer when held
   | KLayerSwitch Text                      -- ^ Switch base-layer when pressed
   | KLayerAdd Text                         -- ^ Add a layer when pressed
   | KLayerRem Text                         -- ^ Remove top instance of a layer when pressed
   | KTapNext DefButton DefButton           -- ^ Do 2 things based on behavior
   | KTapHold Int DefButton DefButton       -- ^ Do 2 things based on behavior and delay
-  | KTapHoldNext Int DefButton DefButton   -- ^ Mixture between KTapNext and KTapHold
+  | KTapHoldNext Int DefButton DefButton (Maybe DefButton)
+    -- ^ Mixture between KTapNext and KTapHold
   | KTapNextRelease DefButton DefButton    -- ^ Do 2 things based on behavior
-  | KTapHoldNextRelease Int DefButton DefButton
+  | KTapHoldNextRelease Int DefButton DefButton (Maybe DefButton)
     -- ^ Like KTapNextRelease but with a timeout
   | KAroundNext DefButton                  -- ^ Surround a future button
   | KAroundNextSingle DefButton            -- ^ Surround a future button
   | KMultiTap [(Int, DefButton)] DefButton -- ^ Do things depending on tap-count
   | KAround DefButton DefButton            -- ^ Wrap 1 button around another
+  | KAroundNextTimeout Int DefButton DefButton
   | KTapMacro [DefButton] (Maybe Int)
     -- ^ Sequence of buttons to tap, possible delay between each press
   | KTapMacroRelease [DefButton] (Maybe Int)
@@ -162,7 +143,7 @@ data IToken
 -- | All different output-tokens KMonad can take
 data OToken
   = KUinputSink Text (Maybe Text)
-  | KSendEventSink
+  | KSendEventSink (Maybe (Int, Int))
   | KKextSink
   deriving Show
 

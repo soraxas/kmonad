@@ -34,9 +34,12 @@ where
 
 import KMonad.Prelude hiding (try, bool)
 
+import KMonad.Parsing
 import KMonad.Args.Types
 import KMonad.Keyboard
 import KMonad.Keyboard.ComposeSeq
+
+
 
 import Data.Char
 import RIO.List (sortBy, find)
@@ -51,9 +54,9 @@ import qualified Text.Megaparsec.Char.Lexer as L
 -- $run
 
 -- | Try to parse a list of 'KExpr' from 'Text'
-parseTokens :: Text -> Either PErrors [KExpr]
+parseTokens :: Text -> Either ParseError [KExpr]
 parseTokens t = case runParser configP "" t  of
-  Left  e -> Left $ PErrors e
+  Left  e -> Left $ ParseError e
   Right x -> Right x
 
 -- | Load a set of tokens from file, throw an error on parse-fail
@@ -65,13 +68,6 @@ loadTokens pth = parseTokens <$> readFileUtf8 pth >>= \case
 
 --------------------------------------------------------------------------------
 -- $basic
-
--- | Consume whitespace
-sc :: Parser ()
-sc = L.space
-  space1
-  (L.skipLineComment  ";;")
-  (L.skipBlockComment "#|" "|#")
 
 -- | Consume whitespace after the provided parser
 lexeme :: Parser a -> Parser a
@@ -130,7 +126,7 @@ bool = symbol "true" *> pure True
 
 -- | Parse a LISP-like keyword of the form @:keyword value@
 keywordP :: Text -> Parser p -> Parser p
-keywordP kw p = lexeme (string (":" <> kw)) *> lexeme p
+keywordP kw p = symbol (":" <> kw) *> lexeme p
   <?> "Keyword " <> ":" <> T.unpack kw
 
 --------------------------------------------------------------------------------
@@ -146,11 +142,11 @@ keycodeP = fromNamed (Q.reverse keyNames ^.. Q.itemed) <?> "keycode"
 numP :: Parser Int
 numP = L.decimal
 
--- | Parse text with escaped characters between "s
+-- | Parse text with escaped characters between double quotes.
 textP :: Parser Text
 textP = do
-  _ <- char '\"' <|> char '\''
-  s <- manyTill L.charLiteral (char '\"' <|> char '\'')
+  _ <- char '\"'
+  s <- manyTill L.charLiteral (char '\"')
   pure . T.pack $ s
 
 -- | Parse a variable reference
@@ -187,7 +183,7 @@ exprP = paren . choice $
 -- | Different ways to refer to shifted versions of keycodes
 shiftedNames :: [(Text, DefButton)]
 shiftedNames = let f = second $ \kc -> KAround (KEmit KeyLeftShift) (KEmit kc) in
-                 map f $ cps <> num <> oth
+                 map f $ cps <> num <> oth <> lng
   where
     cps = zip (map T.singleton ['A'..'Z'])
           [ KeyA, KeyB, KeyC, KeyD, KeyE, KeyF, KeyG, KeyH, KeyI, KeyJ, KeyK, KeyL, KeyM,
@@ -197,6 +193,8 @@ shiftedNames = let f = second $ \kc -> KAround (KEmit KeyLeftShift) (KEmit kc) i
     oth = zip (map T.singleton "<>:~\"|{}+?")
           [ KeyComma, KeyDot, KeySemicolon, KeyGrave, KeyApostrophe, KeyBackslash
           , KeyLeftBrace, KeyRightBrace, KeyEqual, KeySlash]
+    lng = [ ("quot", KeyApostrophe), ("pipe", KeyBackslash), ("cln", KeySemicolon)
+          , ("tild", KeyGrave) , ("udrs", KeyMinus)]
 
 -- | Names for various buttons
 buttonNames :: [(Text, DefButton)]
@@ -249,7 +247,7 @@ composeSeqP = do
 deadkeySeqP :: Parser [DefButton]
 deadkeySeqP = do
   _ <- prefix (char '+')
-  c <- satisfy (`elem` ("~'^`\"" :: String))
+  c <- satisfy (`elem` ("~'^`\"," :: String))
   case runParser buttonP "" (T.singleton c) of
     Left  _ -> fail "Could not parse deadkey sequence"
     Right b -> pure [b]
@@ -265,21 +263,29 @@ buttonP = (lexeme . choice . map try $
 keywordButtons :: [(Text, Parser DefButton)]
 keywordButtons =
   [ ("around"         , KAround      <$> buttonP     <*> buttonP)
+  , ("press-only"     , KPressOnly   <$> keycodeP)
+  , ("release-only"   , KReleaseOnly <$> keycodeP)
   , ("multi-tap"      , KMultiTap    <$> timed       <*> buttonP)
   , ("tap-hold"       , KTapHold     <$> lexeme numP <*> buttonP <*> buttonP)
-  , ("tap-hold-next"  , KTapHoldNext <$> lexeme numP <*> buttonP <*> buttonP)
+  , ("tap-hold-next"
+    , KTapHoldNext <$> lexeme numP <*> buttonP <*> buttonP
+                   <*> optional (keywordP "timeout-button" buttonP))
   , ("tap-next-release"
     , KTapNextRelease <$> buttonP <*> buttonP)
   , ("tap-hold-next-release"
-    , KTapHoldNextRelease <$> lexeme numP <*> buttonP <*> buttonP)
+    , KTapHoldNextRelease <$> lexeme numP <*> buttonP <*> buttonP
+                          <*> optional (keywordP "timeout-button" buttonP))
   , ("tap-next"       , KTapNext     <$> buttonP     <*> buttonP)
   , ("layer-toggle"   , KLayerToggle <$> lexeme word)
-  , ("layer-switch"   , KLayerSwitch <$> lexeme word)
+  , ("momentary-layer" , KLayerToggle <$> lexeme word)
+  , ("layer-switch"    , KLayerSwitch <$> lexeme word)
+  , ("permanent-layer" , KLayerSwitch <$> lexeme word)
   , ("layer-add"      , KLayerAdd    <$> lexeme word)
   , ("layer-rem"      , KLayerRem    <$> lexeme word)
   , ("layer-delay"    , KLayerDelay  <$> lexeme numP <*> lexeme word)
   , ("layer-next"     , KLayerNext   <$> lexeme word)
   , ("around-next"    , KAroundNext  <$> buttonP)
+  , ("around-next-timeout", KAroundNextTimeout <$> lexeme numP <*> buttonP <*> buttonP)
   , ("tap-macro"
     , KTapMacro <$> lexeme (some buttonP) <*> optional (keywordP "delay" numP))
   , ("tap-macro-release"
@@ -327,7 +333,7 @@ otokenP = choice $ map (try . uncurry statement) otokens
 otokens :: [(Text, Parser OToken)]
 otokens =
   [ ("uinput-sink"    , KUinputSink <$> lexeme textP <*> optional textP)
-  , ("send-event-sink", pure KSendEventSink)
+  , ("send-event-sink", KSendEventSink <$> (optional $ (,) <$> lexeme numP <*> numP))
   , ("kext"           , pure KKextSink)]
 
 -- | Parse the DefCfg token
